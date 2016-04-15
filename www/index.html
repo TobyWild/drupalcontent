@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width" />
+    <!-- This is a wide open CSP declaration. To lock this down for production, see below. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src *" />
+    <!-- Good default declaration:
+    * gap: is required only on iOS (when using UIWebView) and is needed for JS->native communication
+    * https://ssl.gstatic.com is required only on Android and is needed for TalkBack to function properly
+    * Disables use of eval() and inline scripts in order to mitigate risk of XSS vulnerabilities. To change this:
+        * Enable inline JS: add 'unsafe-inline' to default-src
+        * Enable eval(): add 'unsafe-eval' to default-src
+    * Create your own at http://cspisawesome.com
+    -->
+    <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: 'unsafe-inline' https://ssl.gstatic.com; style-src 'self' 'unsafe-inline'; media-src *" /> -->
+    
+    <link rel="stylesheet" type="text/css" href="css/custom.css" />
+    <title>DrupalCon</title>
+</head>
+
+<body>
+
+  <div class="app">
+  
+    <div class="card">
+      <h2 class="title">Controls</h2>
+      <div class="controls">
+        <button onclick="craftNode();">Create Node<span class="icon-send"></span></button>
+        <button onclick="capturePhoto();">Take and Upload Photo<span class="icon-send"></span></button>
+      </div>
+    </div>
+        
+    <div class="action">
+      <a class="left" href="index.html"><span class="icon-refresh"></span>Refresh</a>
+      <a class="right" href="login.html"><span class="icon-lock_open"></span>Logout</a>
+    </div>
+    
+  </div>
+  
+  <script type="text/javascript" src="cordova.js"></script>
+  <script type="text/javascript" src="js/index.js"></script>
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js"></script>
+  <script type="text/javascript">
+  
+    app.initialize();
+    
+    if(!localStorage.atoken){
+      window.location = "login.html";
+    }
+    
+    // The call to the actual Camera plugin via Cordova
+    function capturePhoto(){
+      navigator.camera.getPicture(craftFile,null,{sourceType:1,quality:60,destinationType:Camera.DestinationType.DATA_URL});
+    }
+
+    // Create a JSON string containing the image
+    function craftFile(fileInput){
+      
+      var data = {
+        "file": fileInput,
+        "filename": prompt("Enter file name")+".jpg"
+      };
+      
+      url = "http:/panopticmonitor.com/api";
+      
+      // Call this function with the JSON, URL and which function to run AFTER postFile runs
+      postFile(data, url, postwith);
+    }
+    
+    // This function creates a Node with an Image attached
+    function postwith(data) {
+    
+      // Nodes need timestamps
+      var date = new Date();
+      var timestamp = Math.round(date.getTime() / 1000);
+      
+      // The node object as a JSON string
+      var node_object = {
+        "type": "page", // Machine name of the Content Type
+        "title": prompt("Enter node title"), // The title, ask the user
+        "body": {
+          "und": {
+            0: {
+              "value": prompt("Enter body text"), // The body field, ask the user
+            }
+          }
+        },
+        "field_photo": {
+          "und": {
+            0: {
+              "fid": data.fid, // The FileID returned from the postFile function
+              "alt": "Photo uploaded from Phone",
+              "title": "Photo uploaded from Phone"
+            }
+          }
+        },
+        "created": timestamp,
+        "status": 1
+      };
+      
+      url = "http://panopticmonitor.com/api";
+      
+      // What function do we pass the node_object JSON to, and what URL should it be uploaded to
+      postNode(node_object, url);
+    }
+    
+    // For just creating a node, without any images
+    function craftNode(){
+    
+      var date = new Date();
+      var timestamp = Math.round(date.getTime() / 1000);
+      
+      var node_object = {
+        "type": 'page',
+        "title": prompt("Enter node title"),
+        "body": {
+          "und": {
+            0: {
+              "value": prompt("Enter body text")
+            }
+          }
+        },
+        "created": timestamp, 
+        "status": 1
+      };
+      
+      url = "http://panopticmonitor.com/api";
+      
+      // Third element is a custom success function
+      postNode(node_object, url, function() {
+        alert('Node posted!');
+      });
+      
+    }
+    
+    // Generic function for creating Nodes
+    function postNode(node, url, successFunction, errorFunction) {
+    
+      // If there is no custom success funtion provided, use the default
+      if (typeof successFunction == 'undefined') {
+        var successFunction = servicePass;
+      };
+      
+      // If there is no custom error funtion provided, use the default
+      if (typeof errorFunction == 'undefined') {
+        var errorFunction = serviceFail;
+      };
+      
+      // What service are we calling
+      var url = url + '/node.json';
+      
+      // The actual AJAX call
+      $.ajax({
+      
+        // Combination of the URL provided, and the service above
+        url: url,
+        
+        // POST, because are providing data
+        type: "POST",
+        
+        // The node_object that we are passing
+        data: node,
+        
+        // Include the Authorization token
+        beforeSend: function (xhr) {
+          xhr.setRequestHeader ("Authorization", "Bearer " + localStorage.atoken);
+        },
+        
+        // Success
+        success: function(data) {
+          successFunction(data);
+        },
+        
+        // Failure
+        error: function(data) {
+          errorFunction(data);
+        }
+      });
+      
+    }
+    
+    // Generic function for creating Files
+    function postFile(file, url, successFunction, errorFunction) {
+    
+      if (typeof successFunction == 'undefined') {
+        var successFunction = servicePass;
+      };
+      
+      if (typeof errorFunction == 'undefined') {
+        var errorFunction = serviceFail;
+      };
+      
+      var url = url + '/file.json';
+      
+      $.ajax({
+        url: url,
+        type: "POST",
+        data: file,
+        beforeSend: function (xhr) {
+          xhr.setRequestHeader ("Authorization", "Bearer " + localStorage.atoken);
+        },
+        success: function(data) {
+          successFunction(data);
+        },
+        error: function(data) {
+          errorFunction(data);
+        }
+      });
+    }
+    
+    function servicePass(data) {
+      console.log(data);
+      alert('Success!');
+    }
+    
+    function serviceFail(data) {
+      console.log(data);
+      alert('Something went wrong!');
+    }
+
+  </script>
+</body>
+
+</html>

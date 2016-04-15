@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width" />
+    <!-- This is a wide open CSP declaration. To lock this down for production, see below. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src *" />
+    <!-- Good default declaration:
+    * gap: is required only on iOS (when using UIWebView) and is needed for JS->native communication
+    * https://ssl.gstatic.com is required only on Android and is needed for TalkBack to function properly
+    * Disables use of eval() and inline scripts in order to mitigate risk of XSS vulnerabilities. To change this:
+        * Enable inline JS: add 'unsafe-inline' to default-src
+        * Enable eval(): add 'unsafe-eval' to default-src
+    * Create your own at http://cspisawesome.com
+    -->
+    <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: 'unsafe-inline' https://ssl.gstatic.com; style-src 'self' 'unsafe-inline'; media-src *" /> -->
+    
+    <link rel="stylesheet" type="text/css" href="css/custom.css" />
+    <title>DrupalCon</title>
+</head>
+
+<body>
+  
+  <div class="app">
+  
+    <!-- Input and Form elements for the Login script -->
+    <div class="controls">
+      <input name="user" id="user-input" class="input-field" value="" type="text" placeholder="Username" />
+      <input name="pass" id="pass-input" class="input-field" value="" type="password" placeholder="Password" />
+      
+      <!-- onClick contains the function name that is run when it's clicked -->
+      <button onclick="loginDrupal();">Login<span class="icon-lock_outline"></span></button>
+    </div>
+    
+    <!-- The div that will contain an error if required -->
+    <div id="pageContent"></div>
+        
+  </div>
+  
+  <!-- Cordova is the JS library loaded automatically on a phone, not required for Desktop browser testing -->
+  <script type="text/javascript" src="cordova.js"></script>
+  <script type="text/javascript" src="js/index.js"></script>
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js"></script>
+  
+  <!-- The main container for Scripts -->
+  <script type="text/javascript">
+
+    // Initialising the phone app
+    app.initialize();
+
+    // Clear out all the local storage variables
+    localStorage.clear();
+      
+    // Function to get the logging in User ID
+    function getUserID(){
+    
+      // The Ajax function that will be called
+      $.ajax({
+      
+        // The URL to call
+        url: 'http://panopticmonitor.com/api/system/connect',
+        
+        // For THIS service call, we need to Post
+        type: 'POST',
+        
+        // Timeout, because it's important
+        timeout: 5000,
+        
+        // We are requesting across domains
+        crossDomain: true,
+        
+        // All data we pass back and forth is JSON
+        dataType: 'json',
+        
+        // To prove that we are an actual user, send the Access Token we stored when we logged in
+        beforeSend: function (xhr) {
+          xhr.setRequestHeader ("Authorization", "Bearer " + localStorage.atoken);
+        },
+        
+        // If the call to the URL is a Success, we run this function
+        success: function (returnData) {
+        
+          // Get the Data, save it as a variable and a Local Storage variable
+          userData = returnData;
+          localStorage.userID = userData.user.uid;
+        },
+        
+        // If we error, update the Div to include an error message
+        error: function(){
+          $('#pageContent').html('Failed to find User ID, try again.');
+        },
+        
+        // The complete function is run AFTER either Sucess or Error is run.
+        complete: function (xhr, textStatus) {
+          console.log(textStatus);
+          if(textStatus == 'success'){
+            window.location = "index.html";
+          } else {
+            alert(textStatus);
+          }
+        }
+      });
+    };
+    
+    // The Login function
+    function loginDrupal(){
+    
+      // Get and store the username and password
+      var user = $('#user-input').attr('value');
+      var pass = $('#pass-input').attr('value');
+      
+      // Construct the data string that we will pass to the OAuth2 service
+      var data_string = 'grant_type=password&client_id=app';
+      data_string += '&username=' + encodeURIComponent(user);
+      data_string += '&password=' + encodeURIComponent(pass);
+      
+      // The actual Ajax function
+      $.ajax({
+      
+        // The preset OAuth2 URL
+        url: "http://panopticmonitor.com/oauth2/token",
+        
+        // Posting the Data to the service
+        type: 'post',
+        
+        // Timeout, because it's important
+        timeout: 5000,
+        
+        // Including the string that we constructed above
+        data: data_string,
+        
+        // Again, we are dealing with JSON
+        dataType: 'json',
+        
+        // If there is a failure, we popup the ResponseText in an Alert box
+        error: function(XMLHttpRequest, textStatus, errorThrown) {
+          alert($.parseJSON(XMLHttpRequest.responseText).error_description);
+        },
+        
+        // If it's successful, we store the Access Token, and then run the getUserID function
+        success: function (data) {
+          localStorage.atoken = data.access_token;
+          getUserID();
+        }
+      });
+      
+      // Otherwise, run false
+      return false;
+    };
+    
+  </script>
+</body>
+
+</html>
